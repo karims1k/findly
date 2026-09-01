@@ -1,17 +1,34 @@
 // Photo-based search: upload an image to SerpApi's Image API to get an
-// image_id, then run Google Lens against it to find the closest visual
-// match. Lens match titles are noisy (site boilerplate, occasional wrong
-// product), so we clean them up into a plausible search query but the
-// caller is expected to let the user confirm/edit it before searching —
-// this is a starting guess, not a guaranteed-correct identification.
+// image_id, then run Google Lens against it with type=products.
+//
+// This intentionally does NOT try to identify "the exact item" and search
+// for just that — Lens's type=visual_matches mode (used previously) is
+// dominated by social posts (TikTok/Instagram/Pinterest), and picking one
+// "best guess" title collapses everything into a single exact-product
+// search. type=products instead returns dozens of real shopping listings
+// directly, spanning both exact matches AND close-but-different
+// alternatives (other brands, generic/dupe listings) across a much wider,
+// more global set of stores — which is what actually answers "find me
+// something like this, wherever it's sold."
+import type { BrowseProduct } from "./compare";
+import { normalizeCurrencyCode } from "./currency";
 
-export interface LensGuess {
-  guess: string;
-  raw: string;
-  thumbnail: string | null;
+interface LensPrice {
+  value?: string;
+  extracted_value?: number;
+  currency?: string;
 }
 
-export async function identifyImage(image: Blob, apiKey: string): Promise<LensGuess> {
+interface LensProductMatch {
+  title?: string;
+  source?: string;
+  thumbnail?: string;
+  price?: LensPrice;
+}
+
+const MAX_SIMILAR_PRODUCTS = 16;
+
+export async function findSimilarProducts(image: Blob, apiKey: string): Promise<BrowseProduct[]> {
   const uploadForm = new FormData();
   uploadForm.append("image", image, "photo.jpg");
   uploadForm.append("api_key", apiKey);
@@ -25,7 +42,7 @@ export async function identifyImage(image: Blob, apiKey: string): Promise<LensGu
   const lensUrl = new URL("https://serpapi.com/search.json");
   lensUrl.searchParams.set("engine", "google_lens");
   lensUrl.searchParams.set("image_id", uploadData.image_id);
-  lensUrl.searchParams.set("type", "visual_matches");
+  lensUrl.searchParams.set("type", "products");
   lensUrl.searchParams.set("api_key", apiKey);
 
   const lensRes = await fetch(lensUrl);
@@ -34,33 +51,22 @@ export async function identifyImage(image: Blob, apiKey: string): Promise<LensGu
     throw new Error(lensData.error);
   }
 
-  const top = lensData.visual_matches?.[0];
-  if (!top?.title) {
-    throw new Error("Couldn't identify a product in that photo");
+  const matches: LensProductMatch[] = lensData.visual_matches ?? [];
+  const products = matches
+    .filter((m): m is LensProductMatch & { title: string } => !!m.title)
+    .slice(0, MAX_SIMILAR_PRODUCTS)
+    .map((m) => ({
+      title: m.title,
+      price: m.price?.value ?? null,
+      extractedPrice: m.price?.extracted_value ?? null,
+      image: m.thumbnail ?? null,
+      source: m.source ?? "",
+      currency: m.price ? normalizeCurrencyCode(m.price.currency) : undefined,
+    }));
+
+  if (products.length === 0) {
+    throw new Error("Couldn't find any similar products in that photo");
   }
 
-  return {
-    guess: cleanGuess(top.title),
-    raw: top.title,
-    thumbnail: top.thumbnail ?? null,
-  };
-}
-
-function cleanGuess(raw: string): string {
-  let s = raw;
-
-  // Visual-match titles are often "<product title> - <SiteName>" or
-  // "<product> | <SiteName>". Drop a short trailing segment since that's
-  // almost always the site/retailer name, not part of the product.
-  const segments = s.split(/\s+[-|]\s+/);
-  if (segments.length > 1 && segments[segments.length - 1].length <= 24) {
-    segments.pop();
-    s = segments.join(" - ");
-  }
-
-  s = s.replace(/^buy\s+/i, "").replace(/^shop\s+/i, "");
-  s = s.replace(/\bonline\s+at\s+low\s+prices?\b.*$/i, "");
-  s = s.replace(/,\s*$/, "").trim();
-
-  return s || raw;
+  return products;
 }

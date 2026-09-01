@@ -20,6 +20,7 @@ export interface RetailerConfig {
 
 interface RegionConfig {
   label: string;
+  currency: string;
   serpapiParams: Record<string, string>;
   allowlist: RetailerConfig[];
 }
@@ -27,6 +28,7 @@ interface RegionConfig {
 export const REGIONS: Record<Region, RegionConfig> = {
   US: {
     label: "United States",
+    currency: "USD",
     serpapiParams: { google_domain: "google.com", gl: "us", hl: "en" },
     allowlist: [
       { name: "Sephora", sourceMatch: ["sephora"] },
@@ -36,10 +38,12 @@ export const REGIONS: Record<Region, RegionConfig> = {
       { name: "Nordstrom", sourceMatch: ["nordstrom"] },
       { name: "Macy's", sourceMatch: ["macy"] },
       { name: "Kohl's", sourceMatch: ["kohl"] },
+      { name: "Shein", sourceMatch: ["shein"] },
     ],
   },
   AE: {
     label: "United Arab Emirates",
+    currency: "AED",
     serpapiParams: {
       google_domain: "google.ae",
       gl: "ae",
@@ -53,10 +57,12 @@ export const REGIONS: Record<Region, RegionConfig> = {
       { name: "Faces", sourceMatch: ["faces"] },
       { name: "6thstreet", sourceMatch: ["6thstreet", "6th street"] },
       { name: "Amazon.ae", sourceMatch: ["amazon"] },
+      { name: "Shein", sourceMatch: ["shein"] },
     ],
   },
   WORLDWIDE: {
     label: "Worldwide",
+    currency: "USD",
     // No single Google Shopping locale covers every country's listings, so
     // "worldwide" queries the broadest catalog (US) and seeds from stores
     // widely known to ship internationally, rather than trying to localize
@@ -72,6 +78,7 @@ export const REGIONS: Record<Region, RegionConfig> = {
       { name: "Strawberrynet", sourceMatch: ["strawberrynet"] },
       { name: "iHerb", sourceMatch: ["iherb"] },
       { name: "Cult Beauty", sourceMatch: ["cult beauty", "cultbeauty"] },
+      { name: "Shein", sourceMatch: ["shein"] },
     ],
   },
 };

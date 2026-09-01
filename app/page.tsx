@@ -3,8 +3,28 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { SearchResult } from "@/lib/compare";
 import { REGIONS, resolveLocalRegion, type Region } from "@/lib/retailers";
+import { convertAmount, currencyForCountry, fetchExchangeRates, formatCurrency } from "@/lib/currency";
 import AuthWidget from "@/components/AuthWidget";
 import Logo from "@/components/Logo";
+
+// Converts a price into the visitor's local currency for display when
+// exchange rates are available; falls back to the original formatted
+// string (still correct, just not localized) if rates are missing or the
+// currency pair isn't in the rate table.
+function displayPrice(
+  extractedPrice: number | null,
+  sourceCurrency: string,
+  fallback: string | null,
+  localCurrency: string,
+  rates: Record<string, number> | null
+): string {
+  if (extractedPrice === null) return fallback ?? "n/a";
+  if (sourceCurrency === localCurrency) return fallback ?? formatCurrency(extractedPrice, sourceCurrency);
+  if (!rates) return fallback ?? formatCurrency(extractedPrice, sourceCurrency);
+  const converted = convertAmount(extractedPrice, sourceCurrency, localCurrency, rates);
+  if (converted === null) return fallback ?? formatCurrency(extractedPrice, sourceCurrency);
+  return formatCurrency(converted, localCurrency);
+}
 
 type LocationMode = "local" | "worldwide";
 
@@ -92,6 +112,7 @@ export default function Home() {
   const [locationMode, setLocationMode] = useState<LocationMode>("local");
   const [detectedCountry, setDetectedCountry] = useState<DetectedCountry | null>(null);
   const [geoStatus, setGeoStatus] = useState<"loading" | "done" | "error">("loading");
+  const [rates, setRates] = useState<Record<string, number> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,6 +120,9 @@ export default function Home() {
       if (cancelled) return;
       setDetectedCountry(country);
       setGeoStatus(country ? "done" : "error");
+    });
+    fetchExchangeRates().then((r) => {
+      if (!cancelled) setRates(r);
     });
     return () => {
       cancelled = true;
@@ -108,10 +132,10 @@ export default function Home() {
   const localRegion = resolveLocalRegion(detectedCountry?.code);
   const region: Region = locationMode === "worldwide" ? "WORLDWIDE" : localRegion;
   const isLocalUnsupported = locationMode === "local" && geoStatus === "done" && localRegion === "WORLDWIDE";
+  const localCurrency = currencyForCountry(detectedCountry?.code);
 
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
-  const [photoMatch, setPhotoMatch] = useState<{ raw: string; thumbnail: string | null } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const requestIdRef = useRef(0);
 
@@ -120,26 +144,29 @@ export default function Home() {
     e.target.value = "";
     if (!file) return;
 
+    const requestId = ++requestIdRef.current;
     setPhotoBusy(true);
     setPhotoError(null);
-    setPhotoMatch(null);
+    setError(null);
+    setResult(null);
 
     try {
       const resized = await resizeImageForUpload(file);
       const formData = new FormData();
       formData.append("image", resized, "photo.jpg");
+      formData.append("region", region);
       const res = await fetch("/api/lens", { method: "POST", body: formData });
-      const data = await res.json();
-      if (!res.ok) {
-        setPhotoError(data.error ?? "Couldn't identify that photo");
+      const data: ApiResponse = await res.json();
+      if (requestId !== requestIdRef.current) return; // a newer search superseded this one
+      if (!res.ok || "error" in data) {
+        setPhotoError("error" in data ? data.error : "Couldn't identify that photo");
       } else {
-        setPhotoMatch({ raw: data.raw, thumbnail: data.thumbnail });
-        await handleSearch(undefined, data.guess);
+        setResult(data);
       }
     } catch {
-      setPhotoError("Could not process that image");
+      if (requestId === requestIdRef.current) setPhotoError("Could not process that image");
     } finally {
-      setPhotoBusy(false);
+      if (requestId === requestIdRef.current) setPhotoBusy(false);
     }
   }
 
@@ -194,7 +221,6 @@ export default function Home() {
     setResult(null);
     setError(null);
     setQuery("");
-    setPhotoMatch(null);
     setPhotoError(null);
   }
 
@@ -202,16 +228,20 @@ export default function Home() {
     <div className="relative flex flex-1 justify-center overflow-hidden bg-white dark:bg-zinc-950">
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <div
-          className="bg-blob absolute -top-32 -left-32 h-[32rem] w-[32rem] rounded-full bg-fuchsia-400/40 blur-3xl dark:bg-fuchsia-600/30"
+          className="bg-blob absolute -top-32 -left-32 h-[32rem] w-[32rem] rounded-full bg-pink-200/70 blur-3xl dark:bg-fuchsia-600/30"
           style={{ animation: "drift-a 22s ease-in-out infinite" }}
         />
         <div
-          className="bg-blob absolute top-1/3 -right-40 h-[36rem] w-[36rem] rounded-full bg-purple-400/30 blur-3xl dark:bg-purple-600/25"
+          className="bg-blob absolute top-1/3 -right-40 h-[36rem] w-[36rem] rounded-full bg-violet-200/60 blur-3xl dark:bg-purple-600/25"
           style={{ animation: "drift-b 28s ease-in-out infinite" }}
         />
         <div
-          className="bg-blob absolute -bottom-40 left-1/4 h-[30rem] w-[30rem] rounded-full bg-rose-300/40 blur-3xl dark:bg-indigo-600/25"
+          className="bg-blob absolute -bottom-40 left-1/4 h-[30rem] w-[30rem] rounded-full bg-sky-200/60 blur-3xl dark:bg-indigo-600/25"
           style={{ animation: "drift-c 25s ease-in-out infinite" }}
+        />
+        <div
+          className="bg-blob absolute top-1/2 left-1/2 h-[26rem] w-[26rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-100/50 blur-3xl dark:hidden"
+          style={{ animation: "drift-a 30s ease-in-out infinite reverse" }}
         />
       </div>
 
@@ -292,26 +322,6 @@ export default function Home() {
               {geoStatus === "done" && isLocalUnsupported &&
                 `We don't have a curated retailer list for ${detectedCountry?.name} yet — showing worldwide retailers instead.`}
             </p>
-          )}
-
-          {photoMatch && (
-            <div className="flex items-center gap-3 rounded-xl bg-fuchsia-50 px-4 py-2 text-xs text-fuchsia-800 dark:bg-fuchsia-950/50 dark:text-fuchsia-200">
-              {photoMatch.thumbnail && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={photoMatch.thumbnail} alt="" className="h-8 w-8 rounded-md object-cover" />
-              )}
-              <span>
-                Matched from your photo: <span className="font-medium">{photoMatch.raw}</span> — edit the search
-                above if that&apos;s not quite right.
-              </span>
-              <button
-                type="button"
-                onClick={() => setPhotoMatch(null)}
-                className="ml-auto shrink-0 text-fuchsia-400 hover:text-fuchsia-700 dark:hover:text-fuchsia-100"
-              >
-                ×
-              </button>
-            </div>
           )}
 
           {photoError && (
@@ -400,7 +410,15 @@ export default function Home() {
                         {product.title}
                       </span>
                       <span className="text-sm font-bold text-fuchsia-600 dark:text-fuchsia-400">
-                        {product.price ? `From ${product.price}` : "See price"}
+                        {product.extractedPrice !== null
+                          ? `From ${displayPrice(
+                              product.extractedPrice,
+                              product.currency ?? result.currency,
+                              product.price,
+                              localCurrency,
+                              rates
+                            )}`
+                          : "See price"}
                       </span>
                     </button>
                   ))}
@@ -506,7 +524,9 @@ export default function Home() {
 
                     <div className="flex items-center gap-6 sm:gap-8">
                       <div className="text-left sm:text-right">
-                        <div className="text-lg font-bold text-zinc-900 dark:text-zinc-50">{row.price ?? "n/a"}</div>
+                        <div className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+                          {displayPrice(row.extractedPrice, result.currency, row.price, localCurrency, rates)}
+                        </div>
                         {row.shipping && (
                           <div className="text-xs text-zinc-500 dark:text-zinc-400">
                             +{row.shipping.replace(/^\+\s*/, "")} shipping

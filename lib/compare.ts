@@ -120,6 +120,7 @@ export interface SingleResult {
   mode: "single";
   query: string;
   region: Region;
+  currency: string;
   productTitle: string | null;
   rows: ComparisonRow[];
 }
@@ -130,12 +131,18 @@ export interface BrowseProduct {
   extractedPrice: number | null;
   image: string | null;
   source: string;
+  // Only set when products can each carry a different currency (photo
+  // search, sourced from many countries at once). Omitted for the regular
+  // google_shopping-based browse, where every product shares the result's
+  // one `currency` since they all came from the same regional search.
+  currency?: string;
 }
 
 export interface BrowseResult {
   mode: "browse";
   query: string;
   region: Region;
+  currency: string;
   products: BrowseProduct[];
 }
 
@@ -230,7 +237,7 @@ function buildBrowseResult(clusters: SerpApiShoppingResult[][], query: string, r
       source: cheapest.source ?? "",
     };
   });
-  return { mode: "browse", query, region, products };
+  return { mode: "browse", query, region, currency: REGIONS[region].currency, products };
 }
 
 async function buildSingleResult(
@@ -339,7 +346,7 @@ async function buildSingleResult(
     .filter((r) => priceCeiling === null || r.extractedPrice === null || r.extractedPrice <= priceCeiling)
     .sort((a, b) => (a.extractedPrice ?? Infinity) - (b.extractedPrice ?? Infinity));
 
-  return { mode: "single", query, region, productTitle, rows };
+  return { mode: "single", query, region, currency: REGIONS[region].currency, productTitle, rows };
 }
 
 export async function search(query: string, region: Region, apiKey: string): Promise<SearchResult> {
