@@ -1,4 +1,4 @@
-import { compareProduct, type CompareResult } from "@/lib/compare";
+import { search, type SearchResult } from "@/lib/compare";
 import type { Region } from "@/lib/retailers";
 import { REGIONS } from "@/lib/retailers";
 import { isInScope } from "@/lib/category";
@@ -38,13 +38,13 @@ export async function GET(request: Request) {
   }
 
   const cacheKey = `${region}:${query.toLowerCase()}`;
-  const cached = getCached<CompareResult>(cacheKey);
+  const cached = getCached<SearchResult>(cacheKey);
   if (cached) {
     return Response.json(cached);
   }
 
   try {
-    const result = await compareProduct(query, region, apiKey);
+    const result = await search(query, region, apiKey);
     setCached(cacheKey, result, CACHE_TTL_MS);
     return Response.json(result);
   } catch (err) {

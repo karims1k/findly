@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ComparisonRow } from "@/lib/compare";
+import type { SearchResult } from "@/lib/compare";
 import { REGIONS, resolveLocalRegion, type Region } from "@/lib/retailers";
 
 type LocationMode = "local" | "worldwide";
@@ -52,13 +52,7 @@ async function resizeImageForUpload(file: File): Promise<Blob> {
 
 type SortKey = "price" | "rating" | "delivery";
 
-interface ApiResponse {
-  query: string;
-  region: Region;
-  productTitle: string | null;
-  rows: ComparisonRow[];
-  error?: string;
-}
+type ApiResponse = SearchResult | { error: string };
 
 const RETAILER_COLORS: Record<string, string> = {
   Sephora: "from-rose-500 to-pink-600",
@@ -80,10 +74,16 @@ function retailerGradient(name: string) {
   return RETAILER_COLORS[name] ?? "from-fuchsia-500 to-purple-600";
 }
 
+const CATEGORIES = [
+  { label: "Makeup", query: "makeup", icon: "💄", gradient: "from-rose-500 to-pink-600" },
+  { label: "Perfume", query: "perfume", icon: "🌸", gradient: "from-fuchsia-500 to-purple-600" },
+  { label: "Skincare", query: "skincare", icon: "🧴", gradient: "from-teal-400 to-emerald-600" },
+];
+
 export default function Home() {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("price");
-  const [result, setResult] = useState<ApiResponse | null>(null);
+  const [result, setResult] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -131,8 +131,8 @@ export default function Home() {
       if (!res.ok) {
         setPhotoError(data.error ?? "Couldn't identify that photo");
       } else {
-        setQuery(data.guess);
         setPhotoMatch({ raw: data.raw, thumbnail: data.thumbnail });
+        await handleSearch(undefined, data.guess);
       }
     } catch {
       setPhotoError("Could not process that image");
@@ -141,9 +141,11 @@ export default function Home() {
     }
   }
 
-  async function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (!query.trim() || loading || photoBusy) return;
+  async function handleSearch(e?: React.FormEvent, overrideQuery?: string) {
+    e?.preventDefault();
+    const q = overrideQuery ?? query;
+    if (!q.trim() || loading || photoBusy) return;
+    if (overrideQuery !== undefined) setQuery(overrideQuery);
 
     const requestId = ++requestIdRef.current;
     setLoading(true);
@@ -151,11 +153,11 @@ export default function Home() {
     setResult(null);
 
     try {
-      const res = await fetch(`/api/compare?q=${encodeURIComponent(query)}&region=${region}`);
+      const res = await fetch(`/api/compare?q=${encodeURIComponent(q)}&region=${region}`);
       const data: ApiResponse = await res.json();
       if (requestId !== requestIdRef.current) return; // a newer search superseded this one
-      if (!res.ok) {
-        setError(data.error ?? "Something went wrong");
+      if (!res.ok || "error" in data) {
+        setError("error" in data ? data.error : "Something went wrong");
       } else {
         setResult(data);
       }
@@ -168,7 +170,7 @@ export default function Home() {
   }
 
   const sortedRows = useMemo(() => {
-    if (!result) return [];
+    if (!result || result.mode !== "single") return [];
     const rows = [...result.rows];
     switch (sortKey) {
       case "price":
@@ -187,7 +189,7 @@ export default function Home() {
     : null;
 
   return (
-    <div className="flex flex-1 justify-center bg-white dark:bg-zinc-950">
+    <div className="flex flex-1 justify-center bg-white dark:bg-gradient-to-br dark:from-zinc-950 dark:via-fuchsia-950 dark:to-indigo-950">
       <main className="flex w-full max-w-3xl flex-col gap-8 px-6 py-16">
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="bg-gradient-to-r from-fuchsia-600 via-pink-600 to-rose-500 bg-clip-text text-4xl font-extrabold tracking-tight text-transparent">
@@ -292,19 +294,89 @@ export default function Home() {
           )}
         </div>
 
+        {!result && !loading && (
+          <div className="flex flex-col gap-3">
+            <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Browse categories</h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat.query}
+                  type="button"
+                  onClick={() => handleSearch(undefined, cat.query)}
+                  className={`flex items-center gap-3 rounded-2xl bg-gradient-to-br ${cat.gradient} p-5 text-left text-white shadow-md transition-transform hover:scale-[1.02] hover:shadow-lg`}
+                >
+                  <span className="text-3xl">{cat.icon}</span>
+                  <span className="text-lg font-semibold">{cat.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {error && (
           <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
             {error}
           </p>
         )}
 
-        {result && result.rows.length === 0 && !error && (
+        {result && result.mode === "single" && result.rows.length === 0 && !error && (
           <p className="text-center text-sm text-zinc-600 dark:text-zinc-400">
             No listings found among supported retailers for &quot;{result.query}&quot;.
           </p>
         )}
 
-        {result && result.rows.length > 0 && (
+        {result && result.mode === "browse" && (
+          <div className="flex flex-col gap-4">
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              Results for &quot;{result.query}&quot;
+            </h2>
+
+            {result.products.length === 0 ? (
+              <p className="text-center text-sm text-zinc-600 dark:text-zinc-400">
+                No products found among supported retailers for &quot;{result.query}&quot;.
+              </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                  {result.products.map((product, i) => (
+                    <button
+                      key={`${product.title}-${i}`}
+                      type="button"
+                      onClick={() => handleSearch(undefined, product.title)}
+                      className="flex flex-col gap-2 rounded-2xl border border-zinc-200 bg-white p-3 text-left shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
+                    >
+                      <div className="aspect-square w-full overflow-hidden rounded-xl bg-zinc-100 dark:bg-zinc-800">
+                        {product.image ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={product.image}
+                            alt={product.title}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-fuchsia-500 to-purple-600 text-2xl font-bold text-white">
+                            {product.title.charAt(0)}
+                          </div>
+                        )}
+                      </div>
+                      <span className="line-clamp-2 text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                        {product.title}
+                      </span>
+                      <span className="text-sm font-bold text-fuchsia-600 dark:text-fuchsia-400">
+                        {product.price ? `From ${product.price}` : "See price"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-center text-xs text-zinc-400 dark:text-zinc-600">
+                  Tap a product to compare its price, delivery, and reviews across retailers.
+                </p>
+              </>
+            )}
+          </div>
+        )}
+
+        {result && result.mode === "single" && result.rows.length > 0 && (
           <div className="flex flex-col gap-4">
             {result.productTitle && (
               <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{result.productTitle}</h2>

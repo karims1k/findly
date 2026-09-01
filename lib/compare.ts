@@ -48,10 +48,27 @@ function isOfficialStore(store: SerpApiStore, brand: string | undefined): boolea
   return false;
 }
 
+// For a browse grid, a source is worth displaying if it's a known
+// retailer/marketplace, OR if it basically IS the thing being searched
+// (e.g. searching "Fenty Beauty" and seeing a "Fenty Beauty" /
+// "fentybeauty.com" source) — a brand's own catalog is inherently a
+// legitimate source even though it's not in the curated retailer list.
+function isBrowseCandidateSource(source: string | undefined, query: string, region: Region): boolean {
+  if (!source) return false;
+  if (matchRetailerBySource(source, region) !== null || isMarketplaceSource(source)) return true;
+
+  const normSource = normalize(source);
+  const normQuery = normalize(query);
+  if (!normSource || !normQuery) return false;
+  return normSource.includes(normQuery) || normQuery.includes(normSource);
+}
+
 interface SerpApiShoppingResult {
   source?: string;
   title?: string;
   thumbnail?: string;
+  price?: string;
+  extracted_price?: number;
   serpapi_immersive_product_api?: string;
 }
 
@@ -99,12 +116,30 @@ export interface ComparisonRow {
   isMarketplace: boolean;
 }
 
-export interface CompareResult {
+export interface SingleResult {
+  mode: "single";
   query: string;
   region: Region;
   productTitle: string | null;
   rows: ComparisonRow[];
 }
+
+export interface BrowseProduct {
+  title: string;
+  price: string | null;
+  extractedPrice: number | null;
+  image: string | null;
+  source: string;
+}
+
+export interface BrowseResult {
+  mode: "browse";
+  query: string;
+  region: Region;
+  products: BrowseProduct[];
+}
+
+export type SearchResult = SingleResult | BrowseResult;
 
 // Google Shopping groups every seller of "the same" product under one
 // immersive-product page in some markets (US), but splits them into
@@ -115,6 +150,52 @@ export interface CompareResult {
 // search, so this is a coverage/cost tradeoff — kept low to leave headroom
 // on the free tier (250 searches/month); raise it once on a paid plan.
 const MAX_IMMERSIVE_LOOKUPS = 4;
+
+// A query can return either "one product, many sellers" (e.g. an exact
+// product name) or "many different products" (e.g. a bare brand or
+// category name like "Fenty Beauty" or "makeup"). There's no field that
+// says which — it has to be inferred from how similar the result titles
+// are to each other. Titles are clustered by word overlap; if the biggest
+// cluster covers most of the results, treat it as one product (existing
+// price-comparison flow). Otherwise, it's a browse: show each cluster as
+// its own product card instead of forcing them into one bogus comparison.
+const TITLE_SIMILARITY_THRESHOLD = 0.5;
+const MIN_RESULTS_FOR_BROWSE_CHECK = 4;
+const DOMINANT_CLUSTER_SHARE_FOR_SINGLE = 0.5;
+const MAX_BROWSE_PRODUCTS = 12;
+
+function titleWords(title: string): Set<string> {
+  return new Set(
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 2)
+  );
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let intersection = 0;
+  for (const w of a) if (b.has(w)) intersection++;
+  const union = a.size + b.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+function clusterByTitle(entries: SerpApiShoppingResult[]): SerpApiShoppingResult[][] {
+  const clusters: { key: Set<string>; items: SerpApiShoppingResult[] }[] = [];
+  for (const entry of entries) {
+    if (!entry.title) continue;
+    const words = titleWords(entry.title);
+    const match = clusters.find((c) => jaccard(c.key, words) >= TITLE_SIMILARITY_THRESHOLD);
+    if (match) {
+      match.items.push(entry);
+    } else {
+      clusters.push({ key: words, items: [entry] });
+    }
+  }
+  return clusters.map((c) => c.items).sort((a, b) => b.length - a.length);
+}
 
 function extractDelivery(offers: string[] | undefined): string | null {
   if (!offers) return null;
@@ -136,49 +217,37 @@ async function fetchJson<T>(url: URL): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function compareProduct(query: string, region: Region, apiKey: string): Promise<CompareResult> {
-  const searchUrl = new URL(SERPAPI_BASE);
-  searchUrl.searchParams.set("engine", "google_shopping");
-  searchUrl.searchParams.set("q", query);
-  searchUrl.searchParams.set("api_key", apiKey);
-  for (const [key, value] of Object.entries(REGIONS[region].serpapiParams)) {
-    searchUrl.searchParams.set(key, value);
-  }
+function buildBrowseResult(clusters: SerpApiShoppingResult[][], query: string, region: Region): BrowseResult {
+  const products: BrowseProduct[] = clusters.slice(0, MAX_BROWSE_PRODUCTS).map((cluster) => {
+    const cheapest = cluster.reduce((best, r) =>
+      (r.extracted_price ?? Infinity) < (best.extracted_price ?? Infinity) ? r : best
+    );
+    return {
+      title: cheapest.title ?? query,
+      price: cheapest.price ?? null,
+      extractedPrice: cheapest.extracted_price ?? null,
+      image: cheapest.thumbnail ?? null,
+      source: cheapest.source ?? "",
+    };
+  });
+  return { mode: "browse", query, region, products };
+}
 
-  const searchData = await fetchJson<SerpApiShoppingResponse>(searchUrl);
-  if (searchData.error) {
-    throw new Error(`SerpApi error: ${searchData.error}`);
-  }
-
-  const results = searchData.shopping_results ?? [];
-  // The allowlist is used only to pick trustworthy *seed* listings for the
-  // immersive-product lookup below — Google groups the same real-world item
-  // under several different "canonical product" pages, and seeding from a
-  // sketchy listing can land on a junk grouping (verified: a reseller-seeded
-  // lookup returned eBay/Depop mixed with spam instead of real retailers).
-  // Seeding from a known legitimate retailer reliably lands on the clean
-  // grouping, which itself includes the official brand site and other
-  // legitimate sellers Google groups there — so the allowlist does NOT gate
-  // which stores get shown, only which grouping gets fetched. Marketplace
-  // platforms (eBay, Depop, ...) are also seeded from opportunistically,
-  // whenever Google lists one of them directly — this surfaces them for
-  // products where they're a primary listing (rare/discontinued items)
-  // without forcing extra lookups for every search.
-  const matched = results.filter(
-    (r) => matchRetailerBySource(r.source, region) !== null || isMarketplaceSource(r.source)
-  );
-
+async function buildSingleResult(
+  query: string,
+  region: Region,
+  apiKey: string,
+  clusterEntries: SerpApiShoppingResult[]
+): Promise<SingleResult> {
   // The flat search results carry each listing's own submitted product
   // image (distinct per listing, sourced from their Google Merchant feed) —
   // capture it here since the immersive-product lookup below doesn't carry
-  // a per-store image, only a shared product gallery. Pulled from the full
-  // unfiltered result set (not just `matched`) since we now show stores
-  // beyond the seed allowlist, e.g. the official brand site. Names between
-  // the two calls don't always match exactly (flat result says
-  // "fentybeauty.com", immersive store says "Fenty Beauty"), so this is
-  // matched fuzzily rather than by exact key.
+  // a per-store image, only a shared product gallery. Names between the two
+  // calls don't always match exactly (flat result says "fentybeauty.com",
+  // immersive store says "Fenty Beauty"), so this is matched fuzzily rather
+  // than by exact key.
   const imageCandidates: { key: string; thumbnail: string }[] = [];
-  for (const r of results) {
+  for (const r of clusterEntries) {
     if (r.source && r.thumbnail) {
       imageCandidates.push({ key: normalize(r.source), thumbnail: r.thumbnail });
     }
@@ -193,7 +262,7 @@ export async function compareProduct(query: string, region: Region, apiKey: stri
   }
 
   const uniqueImmersiveUrls = [
-    ...new Set(matched.map((r) => r.serpapi_immersive_product_api).filter((u): u is string => !!u)),
+    ...new Set(clusterEntries.map((r) => r.serpapi_immersive_product_api).filter((u): u is string => !!u)),
   ].slice(0, MAX_IMMERSIVE_LOOKUPS);
 
   let productTitle: string | null = null;
@@ -270,5 +339,66 @@ export async function compareProduct(query: string, region: Region, apiKey: stri
     .filter((r) => priceCeiling === null || r.extractedPrice === null || r.extractedPrice <= priceCeiling)
     .sort((a, b) => (a.extractedPrice ?? Infinity) - (b.extractedPrice ?? Infinity));
 
-  return { query, region, productTitle, rows };
+  return { mode: "single", query, region, productTitle, rows };
+}
+
+export async function search(query: string, region: Region, apiKey: string): Promise<SearchResult> {
+  const searchUrl = new URL(SERPAPI_BASE);
+  searchUrl.searchParams.set("engine", "google_shopping");
+  searchUrl.searchParams.set("q", query);
+  searchUrl.searchParams.set("api_key", apiKey);
+  for (const [key, value] of Object.entries(REGIONS[region].serpapiParams)) {
+    searchUrl.searchParams.set(key, value);
+  }
+
+  const searchData = await fetchJson<SerpApiShoppingResponse>(searchUrl);
+  if (searchData.error) {
+    throw new Error(`SerpApi error: ${searchData.error}`);
+  }
+
+  const results = searchData.shopping_results ?? [];
+
+  // Mode is decided from ALL results, not just allowlisted ones — a bare
+  // brand query (e.g. "Fenty Beauty") returns results almost entirely
+  // *sourced from the brand's own site*, which isn't in the retailer
+  // allowlist at all (that list is for recognizing resellers of a specific
+  // product, not the brand catalog itself). Clustering everything by title
+  // similarity reveals the real shape of the results regardless of source.
+  const clusters = clusterByTitle(results.filter((r) => r.title));
+  const dominant = clusters[0] ?? [];
+  const isBrowse =
+    results.length >= MIN_RESULTS_FOR_BROWSE_CHECK &&
+    clusters.length > 1 &&
+    dominant.length / results.length < DOMINANT_CLUSTER_SHARE_FOR_SINGLE;
+
+  if (isBrowse) {
+    // Only show clusters backed by a source we'd actually trust to
+    // display: a known retailer/marketplace, or a source that IS the
+    // brand/name being searched (its own catalog is inherently legitimate,
+    // even though it's not in the curated retailer list).
+    const trustedClusters = clusters.filter((cluster) =>
+      cluster.some((r) => isBrowseCandidateSource(r.source, query, region))
+    );
+    return buildBrowseResult(trustedClusters, query, region);
+  }
+
+  // Single-product mode: the allowlist is used only to pick trustworthy
+  // *seed* listings from within the dominant cluster — Google groups the
+  // same real-world item under several different "canonical product"
+  // pages, and seeding from a sketchy listing can land on a junk grouping
+  // (verified: a reseller-seeded lookup returned eBay/Depop mixed with
+  // spam instead of real retailers). Seeding from a known legitimate
+  // retailer reliably lands on the clean grouping, which itself includes
+  // the official brand site and other legitimate sellers Google groups
+  // there — so the allowlist does NOT gate which stores get shown in the
+  // final result, only which grouping gets fetched. Marketplace platforms
+  // (eBay, Depop, ...) are also seeded from opportunistically, whenever
+  // Google lists one of them directly. If nothing in the dominant cluster
+  // matches the allowlist (e.g. it's all the brand's own site), fall back
+  // to seeding from the cluster itself — title-clustering is already a
+  // meaningful quality signal on its own.
+  const seedCandidates = dominant.filter(
+    (r) => matchRetailerBySource(r.source, region) !== null || isMarketplaceSource(r.source)
+  );
+  return buildSingleResult(query, region, apiKey, seedCandidates.length ? seedCandidates : dominant);
 }
