@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { SearchResult } from "@/lib/compare";
 import { REGIONS, resolveLocalRegion, type Region } from "@/lib/retailers";
+import AuthWidget from "@/components/AuthWidget";
+import Logo from "@/components/Logo";
 
 type LocationMode = "local" | "worldwide";
 
@@ -188,13 +190,38 @@ export default function Home() {
     ? Math.min(...sortedRows.map((r) => r.extractedPrice ?? Infinity))
     : null;
 
+  function handleReset() {
+    setResult(null);
+    setError(null);
+    setQuery("");
+    setPhotoMatch(null);
+    setPhotoError(null);
+  }
+
   return (
-    <div className="flex flex-1 justify-center bg-white dark:bg-gradient-to-br dark:from-zinc-950 dark:via-fuchsia-950 dark:to-indigo-950">
-      <main className="flex w-full max-w-3xl flex-col gap-8 px-6 py-16">
+    <div className="relative flex flex-1 justify-center overflow-hidden bg-white dark:bg-zinc-950">
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div
+          className="bg-blob absolute -top-32 -left-32 h-[32rem] w-[32rem] rounded-full bg-fuchsia-400/40 blur-3xl dark:bg-fuchsia-600/30"
+          style={{ animation: "drift-a 22s ease-in-out infinite" }}
+        />
+        <div
+          className="bg-blob absolute top-1/3 -right-40 h-[36rem] w-[36rem] rounded-full bg-purple-400/30 blur-3xl dark:bg-purple-600/25"
+          style={{ animation: "drift-b 28s ease-in-out infinite" }}
+        />
+        <div
+          className="bg-blob absolute -bottom-40 left-1/4 h-[30rem] w-[30rem] rounded-full bg-rose-300/40 blur-3xl dark:bg-indigo-600/25"
+          style={{ animation: "drift-c 25s ease-in-out infinite" }}
+        />
+      </div>
+
+      <main className="relative z-10 flex w-full max-w-3xl flex-col gap-8 px-6 py-16">
+        <div className="flex justify-end">
+          <AuthWidget />
+        </div>
+
         <div className="flex flex-col items-center gap-2 text-center">
-          <h1 className="bg-gradient-to-r from-fuchsia-600 via-pink-600 to-rose-500 bg-clip-text text-4xl font-extrabold tracking-tight text-transparent">
-            Findly
-          </h1>
+          <Logo />
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             Makeup, perfume &amp; skincare only — find the best price, delivery, and reviews across retailers.
           </p>
@@ -311,6 +338,16 @@ export default function Home() {
               ))}
             </div>
           </div>
+        )}
+
+        {(result || error) && (
+          <button
+            type="button"
+            onClick={handleReset}
+            className="flex w-fit items-center gap-1 text-sm font-medium text-fuchsia-600 transition-colors hover:text-fuchsia-700 dark:text-fuchsia-400 dark:hover:text-fuchsia-300"
+          >
+            ← Back to categories
+          </button>
         )}
 
         {error && (

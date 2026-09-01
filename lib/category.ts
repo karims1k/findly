@@ -31,7 +31,18 @@ const BEAUTY_BRANDS = [
 
 ];
 
+// Matching ignores spaces/punctuation entirely (not just case), so a
+// keyword like "lip gloss" also matches a query typed as "lipgloss" or
+// "lip-gloss" — plain substring matching on lowercased text alone missed
+// these since the space itself has to line up exactly.
+function normalize(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 export function isInScope(text: string): boolean {
-  const lower = text.toLowerCase();
-  return BEAUTY_KEYWORDS.some((kw) => lower.includes(kw)) || BEAUTY_BRANDS.some((b) => lower.includes(b));
+  const normText = normalize(text);
+  return (
+    BEAUTY_KEYWORDS.some((kw) => normText.includes(normalize(kw))) ||
+    BEAUTY_BRANDS.some((b) => normText.includes(normalize(b)))
+  );
 }
