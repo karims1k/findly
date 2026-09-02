@@ -26,11 +26,11 @@ No active feature is mid-build. The favorites/wishlist feature (this session's m
 - Deployed to Vercel (Pro plan) from GitHub `karims1k/findly`, auto-deploy on push to `main`.
 
 ## IN PROGRESS
-Nothing mid-implementation right now — all work described above is code-complete and locally/user verified, but **not yet committed or pushed** (see BLOCKERS).
+Nothing mid-implementation right now — all work described above is code-complete, locally/user verified, and pushed to `main` (`29edae2`).
 
 ## NEXT TASKS
 In roughly the order they'd naturally come up:
-1. **Commit and push all pending local changes** (redesign, bug fixes, favorites feature, dark-mode fix, sort-order change — see "RECENT CHANGES" and BLOCKERS below), then verify the live Vercel deployment matches what's been verified locally. Note: the live deployment has no `favorites` table connection yet either, since the code was never pushed.
+1. **Confirm the live Vercel deployment picked up commit `29edae2`** and spot-check the production URL matches what's been verified locally (redesign, favorites, dark-mode fix, sort order).
 2. Fix the silent-failure gap: `/auth/callback` redirects to `/?authError=1` on a failed magic-link exchange, but nothing in `page.tsx` reads that param — a failed sign-in currently shows nothing to the user.
 3. Set up a real transactional email provider (e.g. Resend) in Supabase's Auth settings — the default built-in sender's rate limit was hit repeatedly during development and will not hold up for real users.
 4. Consider whether SerpApi's free tier (250 searches/month) is sufficient, or whether a paid tier is needed before real traffic — one comparison can cost up to 5 SerpApi credits.
@@ -43,15 +43,15 @@ In roughly the order they'd naturally come up:
 - **Used-item filter can miss used listings** that don't use any of its trigger keywords (heuristic, no structured "condition" field exists to check instead).
 
 ## BLOCKERS
-- **Nothing is technically blocking, but there is a large amount of uncommitted local work.** As of this writing, `git status` shows modified files (`CLAUDE.md`, `app/api/compare/route.ts`, `app/globals.css`, `app/layout.tsx`, `app/page.tsx`, `components/AuthWidget.tsx`, `components/Logo.tsx`, `lib/category.ts`) plus new untracked files (`ARCHITECTURE.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`, `lib/favorites.ts`, `supabase/` (migration SQL), several `dev-scripts/*.mjs`), none of which are committed. This represents the full visual redesign, the lip-gloss drill-down bug fix, the favorites feature, the dark-mode fix, the official-store sort order, and this documentation system — all already implemented and locally/user-verified (see CHANGELOG for what was tested), just not pushed. **Before starting new feature work, either commit+push this, or confirm with the user that it should stay local for now.**
+None. All previously-uncommitted work (redesign, bug fixes, favorites feature, dark-mode fix, sort order, docs) was committed and pushed as `29edae2` on 2026-09-02.
 
 ## RECENT CHANGES
 (See `CHANGELOG.md` for full dated detail. Most recent first, summarized:)
-- Official store(s) pinned to the top of single-product comparison results, with the rest sorted by the active sort mode beneath them. — **uncommitted**
-- Fixed: the app no longer follows the OS's dark-mode setting (a leftover template override was turning the background near-black); the light cream/dusty-rose design is now always shown. — **uncommitted**
-- Favorites/wishlist feature: Supabase `favorites` table + RLS, heart-toggle save/remove on results, "My Favorites" view. Verified end-to-end by the user. — **uncommitted**
-- Full visual redesign to a warm dusty-rose/cream/serif "editorial beauty brand" identity, replacing the earlier vivid fuchsia/purple/Baloo-2 look, built to match a supplied reference mockup. Added a 4th category ("Beauty Accessories") with real sourced product images baked into the `CATEGORIES` array, and a 3-item trust-badge footer. — **uncommitted**
-- Fixed: browse-grid drill-down clicks could get wrongly rejected as "out of scope" (category-scope keyword filter false-negative on real product titles); fixed via a `trusted=1` bypass for internally-originated queries. Also fixed the UI showing category tiles and an error message simultaneously. — **uncommitted**
+- Official store(s) pinned to the top of single-product comparison results, with the rest sorted by the active sort mode beneath them. — committed (`29edae2`)
+- Fixed: the app no longer follows the OS's dark-mode setting (a leftover template override was turning the background near-black); the light cream/dusty-rose design is now always shown. — committed (`29edae2`)
+- Favorites/wishlist feature: Supabase `favorites` table + RLS, heart-toggle save/remove on results, "My Favorites" view. Verified end-to-end by the user. — committed (`29edae2`)
+- Full visual redesign to a warm dusty-rose/cream/serif "editorial beauty brand" identity, replacing the earlier vivid fuchsia/purple/Baloo-2 look, built to match a supplied reference mockup. Added a 4th category ("Beauty Accessories") with real sourced product images baked into the `CATEGORIES` array, and a 3-item trust-badge footer. — committed (`29edae2`)
+- Fixed: browse-grid drill-down clicks could get wrongly rejected as "out of scope" (category-scope keyword filter false-negative on real product titles); fixed via a `trusted=1` bypass for internally-originated queries. Also fixed the UI showing category tiles and an error message simultaneously. — committed (`29edae2`)
 - Performance pass: HTTP `Cache-Control` edge caching on `/api/compare`, `localStorage` caching for geo-detection and exchange rates, lazy-loaded result images. Category list expanded from 3 to 15 (3 hero + 12 chips). — committed (`415ed20` and earlier — verify exact commit if needed via `git log`)
 - Photo search rebuilt to find close-but-similar alternatives (incl. Shein) instead of one exact-match guess; all prices converted to the visitor's local currency. — committed
 - Email magic-link auth (Supabase), new logo/favicon, animated background, brand/category browsing (single-vs-browse mode split). — committed
@@ -69,6 +69,6 @@ No automated test suite. All verification so far has been:
 
 ## DEPLOYMENT STATUS
 - Production: Vercel project `findly` (Pro plan), connected to GitHub `karims1k/findly` branch `main`, auto-deploy on push.
-- **The currently-live deployment does NOT include the redesign, bug fixes, or favorites feature described above** (see BLOCKERS) — it reflects the last pushed commit only. The `favorites` table exists in the live Supabase project (schema is shared between local dev and production — there's only one Supabase project), but no deployed frontend code can use it until the code is pushed.
+- Commit `29edae2` (redesign, favorites feature, dark-mode fix, sort order, docs) was pushed to `main` on 2026-09-02 — Vercel should auto-deploy it within a couple minutes of the push. **Not yet independently re-verified against the live production URL** — check the Vercel dashboard for build status, then spot-check the live site.
 - Environment variables (`SERPAPI_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) are set in Vercel's dashboard already (confirmed working in earlier deployments).
 - Supabase Auth redirect URLs include both the local dev URL and the production URL (confirmed working in earlier testing).

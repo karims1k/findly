@@ -28,9 +28,9 @@ Dates below are git commit dates (verified via `git log --format="%h %ad %s" --d
 
 ---
 
-## UNCOMMITTED — work completed and locally verified, not yet pushed
+## 2026-09-02 — Redesign, favorites feature, bug fixes, and project docs (commit `29edae2`)
 
-Everything below exists in the working tree as of 2026-09-02 but has **no commit yet**. Confirm with `git status`/`git log` before assuming it's live. If you're picking this up fresh, the recommended next step is: re-run `npx tsc --noEmit` and `npm run lint`, spot-check against a local `npm run dev`, then commit and push.
+Everything below was implemented and verified across this session, then committed and pushed to `main` together as one commit.
 
 ### Performance pass + category expansion
 - **Change**: Added `Cache-Control: public, s-maxage=21600, stale-while-revalidate=86400` to `/api/compare` responses so Vercel's edge network can serve repeat/popular queries to any visitor without re-invoking the function or SerpApi. Added `localStorage` caching (6h for geo-detection, 12h for exchange rates) to skip those network calls on repeat visits. Added `loading="lazy"` to result images. Expanded categories from 3 tiles to 3 hero tiles + 12 "more to explore" chips (Lipstick, Foundation, Mascara & Eyes, Nail Polish, Cologne, Body Mist, Moisturizer, Serum, Sunscreen, Cleanser, Face Mask, Hair Care).
@@ -67,7 +67,7 @@ Everything below exists in the working tree as of 2026-09-02 but has **no commit
 - **Files affected**: `app/page.tsx` (`sortedRows` memo).
 - **Notes**: Verified against a live result set (Charlotte Tilbury lipstick): the official Charlotte Tilbury store (AED 136) led the list while eBay (AED 32.91) led the remaining rows sorted low-to-high beneath it.
 
-## 2026-09-02 — Project documentation system
+### Project documentation system
 - **Change**: Created `CLAUDE.md`, `PROJECT_STATUS.md`, `ARCHITECTURE.md`, and this `CHANGELOG.md` by inspecting the actual current codebase (not from memory/assumption). No functional code changed.
 - **Why**: Requested — a durable memory system so work can continue accurately across sessions, context compaction, or long gaps.
 - **Files affected**: the four new markdown files at the project root.
