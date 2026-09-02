@@ -45,7 +45,8 @@ lib/
   retailers.ts               — per-region config: locale params, currency, retailer allowlist (SEED-ONLY, see below)
   category.ts                — keyword/brand heuristic gate ("is this a beauty product query")
   currency.ts                 — country→currency map, symbol normalization, exchange-rate fetch/convert/format
-  cache.ts                    — simple in-memory TTL cache (per-server-instance only, NOT reliable on Vercel)
+  cache.ts                    — shared TTL cache for /api/compare results (Upstash Redis when configured,
+                                  falls back to a per-instance in-memory Map otherwise)
   errors.ts                   — rewrites raw upstream (SerpApi) errors into user-safe messages
   lens.ts                     — photo search implementation (SerpApi Image API + Google Lens)
   favorites.ts                 — favorites CRUD (list/add/remove) against the Supabase `favorites` table
@@ -91,16 +92,18 @@ Supabase magic-link (passwordless), via `@supabase/ssr`:
 ### Environment variables (names only — never put values in this file)
 - `SERPAPI_KEY` — server-only, used in `lib/compare.ts` and `lib/lens.ts`
 - `NEXT_PUBLIC_SUPABASE_URL` — exposed to the browser by design (Supabase project URL)
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — exposed to the browser by design (Supabase anon/public key; safe only because Supabase enforces access via RLS — currently moot since no tables exist)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — exposed to the browser by design (Supabase anon/public key; safe only because Supabase enforces access via RLS)
+- `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` — server-only, used in `lib/cache.ts`. Optional: if unset, `lib/cache.ts` falls back to a per-instance in-memory cache instead of failing. Also accepts the equivalent `KV_REST_API_URL` / `KV_REST_API_TOKEN` names, since Vercel's Upstash marketplace integration can surface either naming.
 
-All three must also be set in the Vercel project's Environment Variables (Production) — they are **not** synced automatically from local `.env.local`.
+All of these must also be set in the Vercel project's Environment Variables (Production) — they are **not** synced automatically from local `.env.local`. The Redis pair is set automatically when connecting the Upstash integration via Vercel's Storage tab, so it usually doesn't need to be typed in by hand.
 
 ## External services and integrations
 
 | Service | Purpose | Notes |
 |---|---|---|
 | **SerpApi** | Sole product-data source: `engine=google_shopping` (search), `serpapi_immersive_product_api` link (per-store detail for single-product mode), `engine=google_lens&type=products` (photo search), `POST /image` (image upload for Lens) | Paid/metered. Free tier is 250 searches/month; one compare call can cost 1 (flat search) + up to 4 (immersive lookups) = up to 5 credits. `MAX_IMMERSIVE_LOOKUPS` in `lib/compare.ts` is the cost/coverage dial. |
-| **Supabase** | Auth only (magic link) | No DB tables in use. Default email sender is rate-limited; see Authentication section. |
+| **Supabase** | Auth (magic link) + one table (`favorites`) | RLS-scoped to `auth.uid()`. Default email sender is rate-limited; see Authentication section. |
+| **Upstash Redis** (via Vercel Marketplace) | Shared cache for `/api/compare` results (`lib/cache.ts`) | Free tier. Falls back to a per-instance in-memory cache if not connected — see Environment variables above. |
 | **ipapi.co** | Client-side geo-IP lookup for "Local" mode and currency detection | Free tier, tight rate limit (hit during dev). Result cached in `localStorage` for 6h to reduce calls. |
 | **open.er-api.com** | Free daily exchange-rate feed, no API key | Result cached in `localStorage` for 12h. |
 | **Vercel** | Hosting, edge caching (via `Cache-Control` headers on `/api/compare`), auto-deploy from GitHub `main` | Pro plan (chosen because Hobby's ToS forbids affiliate-link-primary sites, which is the long-term monetization plan). |
@@ -143,7 +146,7 @@ These are non-obvious and were arrived at empirically — don't "simplify" them 
 - Don't apply `isInScope()` to `trusted=1` requests, and don't add `trusted=1` to anything except internal drill-down/photo-search calls.
 - Don't compare/sort prices across different currencies without converting first (and even then, only for display — see point 8).
 - Don't remove the price-outlier or used-item filters without a replacement safeguard.
-- Don't rely on `lib/cache.ts` (in-memory) for correctness or performance guarantees in production — it's per-server-instance and Vercel runs multiple instances. The `Cache-Control` header on `/api/compare` is the layer that actually matters at scale; keep both, but understand which one is doing real work in production.
+- `lib/cache.ts` only gives real cross-instance sharing in production when `UPSTASH_REDIS_REST_URL`/`TOKEN` (or `KV_REST_API_URL`/`TOKEN`) are actually set in Vercel — without them it silently degrades to a per-instance in-memory cache, which is much weaker but never breaks the app. The `Cache-Control` header on `/api/compare` is a separate, always-on layer (Vercel's edge network); keep both.
 - Don't touch `git config` (global rule for this environment, not project-specific).
 - Don't commit `.env.local` or paste secret values into any file, including these docs.
 - Don't rename `proxy.ts` back to `middleware.ts` — Next.js 16 deprecated that convention; `export function proxy(...)` in `proxy.ts` is the current, correct form.

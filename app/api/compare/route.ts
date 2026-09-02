@@ -7,11 +7,11 @@ import { classifyUpstreamError } from "@/lib/errors";
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
-// In addition to the in-memory cache below (which only helps a single warm
-// server instance — Vercel runs multiple, so a cache hit there is never
-// guaranteed), this tells Vercel's edge network to cache the response
-// itself. That works across ALL visitors hitting the same query+region,
-// not just repeat requests from the same browser or lucky instance, so a
+// In addition to the shared cache below (`lib/cache.ts` — Redis-backed
+// when configured, so a hit is shared across every Vercel instance, not
+// just one warm process), this tells Vercel's edge network to cache the
+// response itself. That works across ALL visitors hitting the same
+// query+region, not just repeat requests from the same browser, so a
 // popular search (or one of the homepage category buttons) can be served
 // instantly from the edge without invoking this function or SerpApi at
 // all. stale-while-revalidate lets a slightly-stale response go out
@@ -56,14 +56,17 @@ export async function GET(request: Request) {
   }
 
   const cacheKey = `${region}:${query.toLowerCase()}`;
-  const cached = getCached<SearchResult>(cacheKey);
+  const cached = await getCached<SearchResult>(cacheKey);
   if (cached) {
     return Response.json(cached, { headers: CACHE_HEADERS });
   }
 
   try {
     const result = await search(query, region, apiKey);
-    setCached(cacheKey, result, CACHE_TTL_MS);
+    // Don't let a slow/failed cache write delay the response — the result
+    // is already ready to return either way (errors are logged inside
+    // setCached itself).
+    void setCached(cacheKey, result, CACHE_TTL_MS);
     return Response.json(result, { headers: CACHE_HEADERS });
   } catch (err) {
     console.error("[api/compare] upstream error:", err);

@@ -32,7 +32,7 @@ Browser (app/page.tsx, "use client")
 3. `app/api/compare/route.ts`:
    a. Validates `q` and `region`.
    b. Checks `isInScope(q)` from `lib/category.ts` — skipped if `trusted=1`.
-   c. Checks `lib/cache.ts` (in-memory, per-server-instance) for a cached result under key `${region}:${query.toLowerCase()}`.
+   c. Checks `lib/cache.ts` (Upstash Redis when configured — shared across all instances; otherwise a per-instance in-memory fallback) for a cached result under key `${region}:${query.toLowerCase()}`.
    d. On a cache miss, calls `search(query, region, apiKey)` from `lib/compare.ts`.
    e. Returns JSON with `Cache-Control: public, s-maxage=21600, stale-while-revalidate=86400` — this is what actually makes repeat/popular queries fast across *all* visitors in production, since Vercel's edge network honors it independently of the in-memory cache.
 4. Inside `search()` (`lib/compare.ts`):
@@ -83,6 +83,7 @@ Browser (app/page.tsx, "use client")
 | Supabase Auth | `lib/supabase/*`, `proxy.ts`, `AuthWidget.tsx`, `auth/callback/route.ts` | Magic-link sign-in only |
 | ipapi.co | `page.tsx` (`detectCountry()`) | Client-side geo-IP → drives "Local" region + default currency |
 | open.er-api.com | `lib/currency.ts` (`fetchExchangeRates()`) | Daily USD-based exchange rates for currency conversion |
+| Upstash Redis (via Vercel Marketplace) | `lib/cache.ts` | Shared cache for `/api/compare` results across all serverless instances; falls back to a per-instance in-memory cache if not connected |
 
 No LLM/AI model integration exists in the running application itself (Claude was used to *build* it, but the app makes no calls to any AI API at runtime).
 
