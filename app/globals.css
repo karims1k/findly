@@ -1,8 +1,21 @@
 @import "tailwindcss";
 
+/* Findly always uses the warm cream/dusty-rose look from the reference
+   design — it never switches to a dark palette based on system theme. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Warm editorial-beauty palette */
+  --color-cream: #fdf3ee;
+  --color-blush: #f6e2d6;
+  --color-dustyrose: #d99a9d;
+  --color-dustyrose-dark: #c1797d;
+  --color-brandbrown: #5c3d38;
+  --color-brandbrown-light: #8a7267;
+  --color-cardbg: #fffaf7;
 }
 
 @theme inline {
@@ -10,13 +23,15 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
+  --font-serif: var(--font-playfair);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-cream: var(--color-cream);
+  --color-blush: var(--color-blush);
+  --color-dustyrose: var(--color-dustyrose);
+  --color-dustyrose-dark: var(--color-dustyrose-dark);
+  --color-brandbrown: var(--color-brandbrown);
+  --color-brandbrown-light: var(--color-brandbrown-light);
+  --color-cardbg: var(--color-cardbg);
 }
 
 body {
@@ -25,42 +40,14 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Slow, organic drift for the brand-color background blobs — each blob uses
-   a different keyframe/duration so they never sync up into a repeating
-   pattern. Kept to translate+scale only (no layout properties) so this
-   stays cheap to animate. */
+/* Slow, gentle drift for the single soft background accent — kept to
+   translate+scale only (no layout properties) so it's cheap to animate. */
 @keyframes drift-a {
   0%, 100% { transform: translate(0, 0) scale(1); }
   33% { transform: translate(8vw, -6vh) scale(1.15); }
   66% { transform: translate(-5vw, 5vh) scale(0.9); }
 }
-@keyframes drift-b {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-7vw, 7vh) scale(1.2); }
-}
-@keyframes drift-c {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(-6vw, -4vh) scale(0.92); }
-  66% { transform: translate(6vw, 3vh) scale(1.1); }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .bg-blob { animation: none !important; }
-}
-
-/* Findly wordmark: a wider gradient than the visible text, slowly panned
-   so a highlight sweeps across the letters on a loop. */
-.logo-text {
-  background-image: linear-gradient(110deg, #c026d3 20%, #f9a8d4 35%, #ec4899 50%, #fda4af 65%, #e11d48 80%);
-  background-size: 250% auto;
-  animation: logo-shine 6s linear infinite;
-}
-
-@keyframes logo-shine {
-  0% { background-position: 200% center; }
-  100% { background-position: -200% center; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .logo-text { animation: none; }
 }

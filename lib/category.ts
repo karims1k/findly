@@ -16,6 +16,7 @@ const BEAUTY_KEYWORDS = [
   "sunscreen", "spf", "retinol", "exfoliant", "exfoliator", "face mask", "eye cream",
   "night cream", "day cream", "hyaluronic", "niacinamide", "lotion", "body wash",
   "shampoo", "conditioner", "hair mask", "gloss bomb",
+  "makeup brush", "beauty blender", "makeup sponge", "makeup bag", "cosmetic bag", "vanity case",
 ];
 
 const BEAUTY_BRANDS = [

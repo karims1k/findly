@@ -76,7 +76,7 @@ export default function AuthWidget() {
         <button
           type="button"
           onClick={handleSignOut}
-          className="rounded-full border border-zinc-200 px-3 py-1 font-medium text-zinc-600 transition-colors hover:border-fuchsia-300 hover:text-fuchsia-600 dark:border-zinc-700 dark:text-zinc-300"
+          className="rounded-full border border-zinc-200 px-3 py-1 font-medium text-zinc-600 transition-colors hover:border-dustyrose hover:text-dustyrose-dark dark:border-zinc-700 dark:text-zinc-300"
         >
           Sign out
         </button>
@@ -101,12 +101,12 @@ export default function AuthWidget() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@email.com"
-        className="w-40 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-black outline-none focus:border-fuchsia-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
+        className="w-40 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-black outline-none focus:border-dustyrose dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
       />
       <button
         type="submit"
         disabled={sending}
-        className="shrink-0 rounded-full bg-gradient-to-r from-fuchsia-600 to-pink-600 px-3 py-1 text-xs font-semibold text-white transition-opacity disabled:opacity-50"
+        className="shrink-0 rounded-full bg-dustyrose px-3 py-1 text-xs font-semibold text-white transition-opacity hover:bg-dustyrose-dark disabled:opacity-50"
       >
         {sending ? "Sending…" : "Sign in"}
       </button>
