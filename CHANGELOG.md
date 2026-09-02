@@ -1,6 +1,6 @@
 # CHANGELOG.md — Findly
 
-Dates below are git commit dates (verified via `git log --format="%h %ad %s" --date=short`), not conversation dates. The final section covers work that is **implemented and locally verified but not yet committed** — check `git status` / `git log` before trusting its date, since it will get a real commit date once pushed.
+Dates below are git commit dates (verified via `git log --format="%h %ad %s" --date=short`), not conversation dates. As of 2026-09-02, everything below is committed and pushed — `git status` shows a clean working tree.
 
 ## 2026-08-31 — Initial build (commit `f4e0411`)
 - **Change**: Built the initial Findly app from scratch — Next.js scaffold, SerpApi-based price comparison (`lib/compare.ts`), region system (US/AE/WORLDWIDE) with retailer allowlists, category-scope keyword gate, in-memory caching, basic UI (search box, category tiles, comparison table), deployed to Vercel from a new GitHub repo (`karims1k/findly`).
@@ -72,3 +72,9 @@ Everything below was implemented and verified across this session, then committe
 - **Why**: Requested — a durable memory system so work can continue accurately across sessions, context compaction, or long gaps.
 - **Files affected**: the four new markdown files at the project root.
 - **Notes**: Found and documented one real gap while inspecting: `/auth/callback` redirects to `/?authError=1` on a failed magic-link exchange, but `page.tsx` never reads that param, so a failed sign-in currently fails silently. Also confirmed no `favorites` table or any Supabase query beyond auth exists — the favorites feature discussed early on was never built.
+
+## 2026-09-02 — Docs synced after push + live deployment confirmed (commit `1d10f6d`)
+- **Change**: Updated `PROJECT_STATUS.md` and `CHANGELOG.md` to mark the redesign/favorites/dark-mode/sort-order batch (`29edae2`) as committed and pushed instead of pending, and to record that the user confirmed the live Vercel deployment matches what was verified locally.
+- **Why**: Keep the docs honest as the source of truth for "where things stand right now," per the project's own documentation rules — a doc that still says "uncommitted" after a push is actively misleading to a future session.
+- **Files affected**: `PROJECT_STATUS.md`, `CHANGELOG.md`.
+- **Notes**: No code changed. As of this commit the working tree is clean and there is no known blocker or in-progress work.

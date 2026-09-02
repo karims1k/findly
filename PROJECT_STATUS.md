@@ -5,7 +5,7 @@
 Last verified against the actual codebase: 2026-09-02.
 
 ## CURRENT OBJECTIVE
-No active feature is mid-build. The favorites/wishlist feature (this session's main task) is code-complete and has been verified end-to-end by the user against the real Supabase table. This update to the docs reflects that plus two smaller fixes done in the same session (dark-mode background bug, official-store sort order).
+None — no active feature is mid-build and nothing is queued. The favorites/wishlist feature, the dark-mode fix, and the official-store sort order are all code-complete, committed, pushed (`1d10f6d`), and the user has confirmed the live Vercel deployment is working correctly. The working tree is clean (`git status` shows no local changes).
 
 ## COMPLETED
 - Core price-comparison engine (`lib/compare.ts`): SerpApi-backed search, single-vs-browse mode detection via title clustering, used-item filter, price-outlier filter, official-store detection, marketplace tagging.
@@ -26,14 +26,13 @@ No active feature is mid-build. The favorites/wishlist feature (this session's m
 - Deployed to Vercel (Pro plan) from GitHub `karims1k/findly`, auto-deploy on push to `main`.
 
 ## IN PROGRESS
-Nothing mid-implementation right now — all work described above is code-complete, locally/user verified, and pushed to `main` (`29edae2`).
+Nothing. Working tree is clean; everything is committed and pushed to `main` (`1d10f6d`), and the live deployment has been confirmed working by the user.
 
 ## NEXT TASKS
-In roughly the order they'd naturally come up:
-1. **Confirm the live Vercel deployment picked up commit `29edae2`** and spot-check the production URL matches what's been verified locally (redesign, favorites, dark-mode fix, sort order).
-2. Fix the silent-failure gap: `/auth/callback` redirects to `/?authError=1` on a failed magic-link exchange, but nothing in `page.tsx` reads that param — a failed sign-in currently shows nothing to the user.
-3. Set up a real transactional email provider (e.g. Resend) in Supabase's Auth settings — the default built-in sender's rate limit was hit repeatedly during development and will not hold up for real users.
-4. Consider whether SerpApi's free tier (250 searches/month) is sufficient, or whether a paid tier is needed before real traffic — one comparison can cost up to 5 SerpApi credits.
+Nothing currently requested. Standing (not-yet-actioned) items worth surfacing if the user asks "what's next":
+1. Fix the silent-failure gap: `/auth/callback` redirects to `/?authError=1` on a failed magic-link exchange, but nothing in `page.tsx` reads that param — a failed sign-in currently shows nothing to the user.
+2. Set up a real transactional email provider (e.g. Resend) in Supabase's Auth settings — the default built-in sender's rate limit was hit repeatedly during development and will not hold up for real users.
+3. Consider whether SerpApi's free tier (250 searches/month) is sufficient, or whether a paid tier is needed before real traffic — one comparison can cost up to 5 SerpApi credits.
 
 ## KNOWN BUGS
 - **Silent auth failure**: see NEXT TASKS #2. Not yet fixed.
@@ -43,10 +42,11 @@ In roughly the order they'd naturally come up:
 - **Used-item filter can miss used listings** that don't use any of its trigger keywords (heuristic, no structured "condition" field exists to check instead).
 
 ## BLOCKERS
-None. All previously-uncommitted work (redesign, bug fixes, favorites feature, dark-mode fix, sort order, docs) was committed and pushed as `29edae2` on 2026-09-02.
+None. Working tree is clean; all work is committed, pushed, and confirmed live.
 
 ## RECENT CHANGES
 (See `CHANGELOG.md` for full dated detail. Most recent first, summarized:)
+- Docs synced to reflect `29edae2` being pushed and the live deployment being confirmed working. — committed (`1d10f6d`)
 - Official store(s) pinned to the top of single-product comparison results, with the rest sorted by the active sort mode beneath them. — committed (`29edae2`)
 - Fixed: the app no longer follows the OS's dark-mode setting (a leftover template override was turning the background near-black); the light cream/dusty-rose design is now always shown. — committed (`29edae2`)
 - Favorites/wishlist feature: Supabase `favorites` table + RLS, heart-toggle save/remove on results, "My Favorites" view. Verified end-to-end by the user. — committed (`29edae2`)
@@ -62,13 +62,14 @@ See `CLAUDE.md` → "Important decisions made during development" for the conden
 
 ## TESTING STATUS
 No automated test suite. All verification so far has been:
-- `npx tsc --noEmit` and `npm run lint` — **re-confirmed clean on 2026-09-02** after the favorites feature, dark-mode fix, and official-store sort change (this reflects the actual current working tree, including all uncommitted changes described in BLOCKERS).
+- `npx tsc --noEmit` and `npm run lint` — **re-confirmed clean on 2026-09-02** after the favorites feature, dark-mode fix, and official-store sort change, all of which are now committed and pushed.
 - Manual Playwright scripts in `dev-scripts/*.mjs`, run against a local `npm run dev` server and inspected via screenshots. These are not wired into any CI and won't run automatically.
 - **Favorites feature specifically was verified live by the user** (not just scripted): signed in via real magic link, saved favorites from both a browse card and a single-product result, confirmed both in "My Favorites," removed one via each of the two remove paths, confirmed removal persisted after a refresh.
+- **The production deployment itself was confirmed working by the user** after the push (not just a successful build) — the last explicit signal was "all good."
 **Action for next session**: the type-check/lint are current, but re-run them again if you make any further edits before pushing — don't assume this confirmation stays valid across new changes.
 
 ## DEPLOYMENT STATUS
 - Production: Vercel project `findly` (Pro plan), connected to GitHub `karims1k/findly` branch `main`, auto-deploy on push.
-- Commit `29edae2` (redesign, favorites feature, dark-mode fix, sort order, docs) was pushed to `main` on 2026-09-02 — Vercel should auto-deploy it within a couple minutes of the push. **Not yet independently re-verified against the live production URL** — check the Vercel dashboard for build status, then spot-check the live site.
-- Environment variables (`SERPAPI_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) are set in Vercel's dashboard already (confirmed working in earlier deployments).
-- Supabase Auth redirect URLs include both the local dev URL and the production URL (confirmed working in earlier testing).
+- **Live and confirmed working** as of 2026-09-02, at `main` HEAD (`1d10f6d`) — includes the full redesign, the favorites feature (backed by the live Supabase `favorites` table), the dark-mode fix, the official-store sort order, and the earlier category-scope/UI-overlap bug fix. Confirmed directly by the user against the production URL, not just inferred from a successful push.
+- Environment variables (`SERPAPI_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) are set in Vercel's dashboard already (confirmed working).
+- Supabase Auth redirect URLs include both the local dev URL and the production URL (confirmed working — magic-link sign-in was tested end-to-end).
