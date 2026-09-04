@@ -155,7 +155,7 @@ These are non-obvious and were arrived at empirically — don't "simplify" them 
 - GitHub `karims1k/findly`, branch `main` → Vercel project `findly` (Pro plan), auto-deploy on push.
 - Live URL: **https://findlybeauty.com** (custom domain, purchased and connected via Vercel's own domain registrar/dashboard on 2026-09-04; redirects the bare domain to `https://www.findlybeauty.com`). The original Vercel-assigned `*.vercel.app` URL still works as a fallback.
 - Env vars must be added in Vercel's dashboard (Settings → Environment Variables, Production) separately from local `.env.local`.
-- Supabase Auth → URL Configuration → Redirect URLs must list both the local dev URL and the production URL(s) — **known gap as of 2026-09-04**: not yet confirmed whether `findlybeauty.com`/`www.findlybeauty.com` were added after the custom domain switch, so magic-link sign-in may currently fail there even though the rest of the app works fine on the new domain. See `PROJECT_STATUS.md` → NEXT TASKS #1.
+- Supabase Auth → URL Configuration → Redirect URLs must list both the local dev URL and the production URL(s). As of 2026-09-04 the list has `findlybeauty.com/**`, `www.findlybeauty.com/**`, and the `*.vercel.app` URL — confirmed working via a real sign-in test. **`http://localhost:3000/**` was dropped from the list in the process** and needs re-adding before local dev magic-link testing will work again (see `PROJECT_STATUS.md` → NEXT TASKS #1).
 
 ## Development commands
 ```

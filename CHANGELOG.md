@@ -89,4 +89,10 @@ Everything below was implemented and verified across this session, then committe
 - **Change**: Purchased `findlybeauty.com` through Vercel's own domain registrar (Storage/Domains tab) and connected it to the `findly` project. No code changed.
 - **Why**: Requested — the app previously only had a `*.vercel.app` URL; a real branded domain was wanted for eventual public use.
 - **Files affected**: none (Vercel/DNS configuration only).
-- **Notes**: Verified live via direct `curl`/`dig` checks (not just the dashboard's "connected" status) — DNS resolves, HTTPS certificate is valid, and the page served is genuinely the Findly app (confirmed via page title/content), not a placeholder. The bare domain redirects to `https://www.findlybeauty.com`. **Found a real follow-up gap while verifying**: Supabase Auth's Redirect URLs allowlist has not been confirmed to include the new domain — until it does, magic-link sign-in will likely fail there even though every other part of the app works correctly on `findlybeauty.com`. See `PROJECT_STATUS.md` → NEXT TASKS #1.
+- **Notes**: Verified live via direct `curl`/`dig` checks (not just the dashboard's "connected" status) — DNS resolves, HTTPS certificate is valid, and the page served is genuinely the Findly app (confirmed via page title/content), not a placeholder. The bare domain redirects to `https://www.findlybeauty.com`.
+
+## 2026-09-04 — Supabase Auth updated for the new domain
+- **Change**: Added `https://findlybeauty.com/**` and `https://www.findlybeauty.com/**` to Supabase Auth → URL Configuration → Redirect URLs, and updated the Site URL to match. No code changed.
+- **Why**: Follow-up from the custom domain switch — the redirect allowlist previously only had the `*.vercel.app` URL, so magic-link sign-in would have failed on `findlybeauty.com`.
+- **Files affected**: none (Supabase dashboard configuration only).
+- **Notes**: Verified working via a real sign-in test on `https://findlybeauty.com`. **New minor gap introduced**: `http://localhost:3000/**` was dropped from the Redirect URLs list during this update, so local dev magic-link sign-in will fail until it's re-added — see `PROJECT_STATUS.md` → NEXT TASKS #1. Production is unaffected.
