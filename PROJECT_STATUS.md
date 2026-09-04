@@ -29,14 +29,15 @@ Performance work: swapped `lib/cache.ts`'s per-instance in-memory cache for a sh
 Working tree is clean; the Redis-cache change is committed and pushed to `main` (`f1cd03a`). **Not yet verified**: that production is actually using Redis (vs. silently falling back to in-memory) — see CURRENT OBJECTIVE.
 
 ## NEXT TASKS
-1. **Verify the Redis cache is actually being hit in production** — repeat the same search twice against the live URL and confirm the second is fast/doesn't re-bill SerpApi; check Upstash's dashboard for command activity as a second signal.
-2. Also being discussed: swapping the `lib/category.ts` keyword/brand list for an LLM-based classifier, to close the whole class of category-scope false-rejection bugs rather than continuing to patch the keyword list. Not started — proposed, not yet agreed to.
-3. Fix the silent-failure gap: `/auth/callback` redirects to `/?authError=1` on a failed magic-link exchange, but nothing in `page.tsx` reads that param — a failed sign-in currently shows nothing to the user.
-4. Set up a real transactional email provider (e.g. Resend) in Supabase's Auth settings — the default built-in sender's rate limit was hit repeatedly during development and will not hold up for real users.
-5. Consider whether SerpApi's free tier (250 searches/month) is sufficient, or whether a paid tier is needed before real traffic — one comparison can cost up to 5 SerpApi credits.
+1. **Add `https://findlybeauty.com/**` and `https://www.findlybeauty.com/**` to Supabase Auth → URL Configuration → Redirect URLs.** Not yet confirmed done — until this is added, magic-link sign-in will likely fail on the new custom domain (the link will redirect to whatever URL(s) are currently allowlisted, probably still just the old `*.vercel.app` one). High priority — this is a real functional gap on the new domain, not just a docs item.
+2. **Verify the Redis cache is actually being hit in production** — repeat the same search twice against the live URL and confirm the second is fast/doesn't re-bill SerpApi; check Upstash's dashboard for command activity as a second signal.
+3. Also being discussed: swapping the `lib/category.ts` keyword/brand list for an LLM-based classifier, to close the whole class of category-scope false-rejection bugs rather than continuing to patch the keyword list. Not started — proposed, not yet agreed to.
+4. Fix the silent-failure gap: `/auth/callback` redirects to `/?authError=1` on a failed magic-link exchange, but nothing in `page.tsx` reads that param — a failed sign-in currently shows nothing to the user.
+5. Set up a real transactional email provider (e.g. Resend) in Supabase's Auth settings — the default built-in sender's rate limit was hit repeatedly during development and will not hold up for real users.
+6. Consider whether SerpApi's free tier (250 searches/month) is sufficient, or whether a paid tier is needed before real traffic — one comparison can cost up to 5 SerpApi credits.
 
 ## KNOWN BUGS
-- **Silent auth failure**: see NEXT TASKS #2. Not yet fixed.
+- **Silent auth failure**: see NEXT TASKS #4. Not yet fixed.
 - **Category-scope false rejections remain possible** for freely-typed search-box queries or category-chip clicks with unusual product titles — the `trusted` bypass only covers internally-originated queries (browse-grid drill-downs, photo search), by design. This is a heuristic limitation, not something with a clean fix (see `CLAUDE.md` → Important business logic #7).
 - **Single/browse mode detection can misfire** on closely-related product-line variants (e.g. "Gloss Bomb" vs "Gloss Bomb Heat") — heuristic clustering, not a hard bug, but a known source of occasionally-odd results.
 - **Delivery-speed data is sparse for the AE/local market** — Google's Shopping index for the UAE locale carries far fewer delivery estimates than the US one. Not fixable from our side; it's a data-availability gap.
@@ -68,13 +69,15 @@ No automated test suite. All verification so far has been:
 - Manual Playwright scripts in `dev-scripts/*.mjs`, run against a local `npm run dev` server and inspected via screenshots. These are not wired into any CI and won't run automatically.
 - **Favorites feature specifically was verified live by the user** (not just scripted): signed in via real magic link, saved favorites from both a browse card and a single-product result, confirmed both in "My Favorites," removed one via each of the two remove paths, confirmed removal persisted after a refresh.
 - **The production deployment was confirmed working by the user** after the redesign/favorites push (not just a successful build) — the explicit signal was "all good."
-- **The Redis cache change has only been verified locally** (confirmed the code falls back gracefully to in-memory when no Redis env vars are present) — **not yet verified against production** now that the user has connected Upstash. See NEXT TASKS #1.
+- **The Redis cache change has only been verified locally** (confirmed the code falls back gracefully to in-memory when no Redis env vars are present) — **not yet verified against production** now that the user has connected Upstash. See NEXT TASKS #2.
 **Action for next session**: the type-check/lint are current, but re-run them again if you make any further edits before pushing — don't assume this confirmation stays valid across new changes.
 
 ## DEPLOYMENT STATUS
 - Production: Vercel project `findly` (Pro plan), connected to GitHub `karims1k/findly` branch `main`, auto-deploy on push.
+- **Custom domain**: `findlybeauty.com` — purchased and connected via Vercel's own domain registrar on 2026-09-04. Confirmed live: DNS resolves, valid HTTPS certificate, serves the real app (verified via `curl`, not just assumed from the dashboard showing "connected"). The bare domain redirects to `https://www.findlybeauty.com`. The original `*.vercel.app` URL still works as a fallback.
+- **Known gap on the new domain**: Supabase's Auth redirect URL allowlist has not been confirmed to include `findlybeauty.com` yet — see NEXT TASKS #1. Until that's added, magic-link sign-in may fail for visitors on the new domain even though the rest of the app works fine.
 - **Live and confirmed working** as of 2026-09-02 through commit `4801a5f` — includes the full redesign, the favorites feature (backed by the live Supabase `favorites` table), the dark-mode fix, the official-store sort order, and the earlier category-scope/UI-overlap bug fix. Confirmed directly by the user against the production URL, not just inferred from a successful build.
-- Commit `f1cd03a` (Redis cache) is pushed and should auto-deploy, but **has not yet been independently confirmed live** — see NEXT TASKS #1 and TESTING STATUS.
+- Commit `f1cd03a` (Redis cache) is pushed and should auto-deploy, but **has not yet been independently confirmed live** — see NEXT TASKS #2 and TESTING STATUS.
 - Upstash Redis integration was connected by the user via the Vercel dashboard's Storage tab on 2026-09-02.
 - Environment variables (`SERPAPI_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) are set in Vercel's dashboard already (confirmed working).
 - Supabase Auth redirect URLs include both the local dev URL and the production URL (confirmed working — magic-link sign-in was tested end-to-end).
